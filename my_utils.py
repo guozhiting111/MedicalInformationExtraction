@@ -33,10 +33,11 @@ class NERDataset(Dataset):
     def __getitem__(self, index) -> dict:
         sentence = list(self.data['sentences'][index])
         sentence = [char2id[c] for c in sentence]
+        length = len(sentence)
         label = self.data['labels'][index]
         label = label.split()
         label = [label2id[c] for c in label]        
-        return {"sentence":sentence,"label":label}
+        return {"sentence":sentence,"label":label,'length':length}
 
 class NERDatasetBert(NERDataset):
     def __init__(self, data_path,tokenizer:BertTokenizer) -> None:
@@ -72,6 +73,7 @@ class NERDatasetBert(NERDataset):
     
     
 def collate_fn(batch):
+    len_list = [f['length'] for f in batch]
     max_len = max([len(f['sentence']) for f in batch])
     sentence = []
     for f in batch:
@@ -79,7 +81,7 @@ def collate_fn(batch):
         sentence.append(s)
     label = [s['label'] + (max_len-len(s['label']))*label2id['O'] for s in batch]
     
-    return sentence,label
+    return sentence,label,len_list
 
 def collate_fn_bert(batch):
     max_len = max([len(f['input_ids']) for f in batch])
