@@ -32,6 +32,7 @@ class CRFLayer(nn.Module):
         self.crf = CRF(num_tags=self.num_tags,batch_first=True)
         self.crf.transitions = self.transitions
         
+        
     def forward(self, inputs, sequence_lengths):
         # inputs: [batch_size, seq_len, num_features]
         # sequence_lengths: [batch_size]
@@ -39,3 +40,4 @@ class CRFLayer(nn.Module):
     
     def decode(self,inputs,lengths=None):
         return self.crf.decode(inputs)
+    

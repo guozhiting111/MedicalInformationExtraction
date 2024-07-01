@@ -4,6 +4,7 @@ import json
 from transformers import BertTokenizer
 import torch
 import config
+from datetime import datetime
 device = config.Config.device
 
 label2id = json.load(open('label2id.json'))
@@ -98,4 +99,37 @@ def collate_fn_bert(batch):
     attention_mask = [f['attention_mask'] + [0.0]*(max_len-len(f['attention_mask'])) for f in batch]
     return torch.LongTensor(input_ids), torch.tensor(attention_mask), torch.tensor(label), len_list
     
+
+
+class LogRecorder:
+    def __init__(self,info:str=None, config:dict=None, verbose:bool=False):
+        self.info = info
+        self.config = config
+        self.log = []
+        self.verbose = verbose
+        self.record = None
+        self.time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.best_score = None
+    
+    
+    def add_log(self, **kwargs):
+        if self.verbose:
+            print(kwargs)
+        self.log.append(kwargs)
+    
+    def to_dict(self):
+        record = dict()
+        record['info'] = self.info
+        record['config'] = self.config
+        record['log'] = self.log
+        record['best_score'] = self.best_score
+        record['time'] = self.time
+        self.record = record
+        return self.record
+    
+    def save(self,path):
+        if self.record == None:
+            self.to_dict()
+        with open(path,'w') as f:
+            json.dump(self.record,f,ensure_ascii=False)
     

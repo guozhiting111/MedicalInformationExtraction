@@ -12,8 +12,13 @@ from transformers import BertModel,BertTokenizer
 import json
 from tqdm import tqdm
 import torch.nn.functional as F
+import argparse
+from my_utils import LogRecorder
+from datetime import datetime
 
 label2id = json.load(open('label2id.json',encoding='utf-8'))
+device = None
+
 
 def eval(model:NerModelBert,dev_dataset,batch_size):
     dev_loader = DataLoader(dev_dataset,
@@ -23,9 +28,9 @@ def eval(model:NerModelBert,dev_dataset,batch_size):
     preds = []
     labels = []
     for batch in dev_loader:
-        inputs = {"input_ids":batch[0],
-                  "attention_mask":batch[1]}
-        label = batch[2]
+        inputs = {"input_ids":batch[0].to(device),
+                  "attention_mask":batch[1].to(device)}
+        label = batch[2].to(device)
         len_list = batch[-1]
         with torch.no_grad():
             output = model(inputs) #[batch,length,num_labels]
@@ -44,21 +49,23 @@ def eval(model:NerModelBert,dev_dataset,batch_size):
         
 
 
-def train(model:NerModelBert,train_dataset,dev_dataset,epoch_num,batch_size,lr,num_labels):
+def train(model:NerModelBert,train_dataset,dev_dataset,args,log_recorder:LogRecorder):
     criterion = nn.CrossEntropyLoss()
-    optimizer = AdamW(model.parameters(),lr=lr)
+    optimizer = AdamW(model.parameters(),lr=args.lr)
     train_loader = DataLoader(train_dataset,
-                              batch_size=batch_size,
+                              batch_size=args.batch_size,
                               collate_fn=collate_fn_bert)
-    
+    total_step = len(train_loader) / args.batch_size
+    step = 0
+    best_f1 = -1
     loss_list = []
-    for epoch in range(epoch_num):
+    for epoch in range(args.epochs):
         model.train()
         loss_total = 0
         for batch in tqdm(train_loader,desc="Training"):
-            inputs = {"input_ids":batch[0],
-                      "attention_mask":batch[1]}
-            label = batch[2]
+            inputs = {"input_ids":batch[0].to(device),
+                      "attention_mask":batch[1].to(device)}
+            label = batch[2].to(device)
             optimizer.zero_grad()
             output = model(inputs)
             # loss = F.cross_entropy(output.view(-1,num_labels),label.view(-1),model.crf_layer.transitions)
@@ -67,22 +74,44 @@ def train(model:NerModelBert,train_dataset,dev_dataset,epoch_num,batch_size,lr,n
             optimizer.step()
             loss_list.append(loss.item())
             loss_total += loss.item()
-        f1 = eval(model,dev_dataset,batch_size)
-        print(f"epoch:{epoch},f1:{f1},loss:{loss_total}")
+            if step % len(train_loader) == 0:
+                f1 = eval(model,dev_dataset,args.batch_size)
+                log_recorder.add_log(step=step,loss=loss.item(),f1=f1)
+                if(f1 > best_f1):
+                    log_recorder.best_score = {'f1':f1}
+                    best_f1 = f1
+                print(f"epoch:{epoch},f1:{f1},loss:{loss_total}")
+            else:
+                log_recorder.add_log(step=step,loss=loss.item())
+                
+            step += 1
     
 def main():
-    num_labels = len(label2id)
-    epoch_num = 10
-    batch_size = 4
-    lr = 1e-5
+    parser = argparse.ArgumentParser(description="Training a bert model.")
+    parser.add_argument("--lr",type=float, default=1e-5, help="Learning rate.")
+    parser.add_argument("--epochs",type=int, default=3, help='Number of training epochs.')    
+    parser.add_argument("--batch_size", type=int, default=4, help="Training batch size.")
+    parser.add_argument("--num_labels", type=int, default=11, help="Number of labels.")
+    parser.add_argument("--device",type=str, default='mps', help="Device used to training model")
+    args = parser.parse_args()
+    
+    global device
+    device = torch.device(args.device)
+    
+    args_dict = vars(args)
+    log_recorder = LogRecorder(info="BERT+CRF",config=args_dict,verbose=False)
+    
     
     tokenizer = BertTokenizer.from_pretrained('bert-base-chinese')
-    bert_model = BertModel.from_pretrained('bert-base-chinese')
-    model = NerModelBert(bert_model=bert_model,num_labels=num_labels)
+    bert_model = BertModel.from_pretrained('bert-base-chinese').to(device)
+    model = NerModelBert(bert_model=bert_model,num_labels=args.num_labels)
+    model.to(device)
     train_dataset = NERDatasetBert('nlp2024-data/dataset/small_train.json',tokenizer)
     dev_dataset = NERDatasetBert('nlp2024-data/dataset/small_dev.json',tokenizer)
-    train(model,train_dataset,dev_dataset,epoch_num,batch_size,lr,num_labels)
-
+    train(model,train_dataset,dev_dataset,args,log_recorder)
+    time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_recorder.save(f'log/{time_str}.json')
+    
 if __name__ == "__main__":
     main()
             
