@@ -13,3 +13,7 @@ class ModelLSTM(nn.Module):
                             )
         # [batch,len,emb]
         # [len,batch,emb]
+    def forward(self,x):
+        x = self.embedding(x)
+        h,_ = self.lstm(x)
+        

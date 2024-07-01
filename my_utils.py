@@ -58,18 +58,25 @@ class NERDatasetBert(NERDataset):
              
         """
         sentence = self.data['sentences'][index]
-        tokens = self.tokenizer.tokenize(sentence)
+        # tokens = self.tokenizer.tokenize(sentence)
+        tokens = list(sentence)
         input_ids = self.tokenizer.convert_tokens_to_ids(tokens)
         input_ids = self.tokenizer.build_inputs_with_special_tokens(input_ids)
+        length = len(input_ids)
         label = self.data['labels'][index]
         label = label.split()
         label = [label2id[c] for c in label]
         label = [label2id['O']] + label  + [label2id['O']] 
         attention_mask = [1.0] * len(input_ids)
+        if(len(input_ids) != len(label)):
+            print(input_ids)
+            print(tokens)
+            print(label)
         assert len(input_ids) == len(label)
         return {"input_ids":input_ids, 
                 "label":label,
-                "attention_mask":attention_mask}
+                "attention_mask":attention_mask,
+                "length":length}
     
     
 def collate_fn(batch):
@@ -79,16 +86,16 @@ def collate_fn(batch):
     for f in batch:
         s = f['sentence'] + (max_len - len(f['sentence']))*['#']
         sentence.append(s)
-    label = [s['label'] + (max_len-len(s['label']))*label2id['O'] for s in batch]
+    label = [s['label'] + (max_len-len(s['label']))*[label2id['O']] for s in batch]
     
     return sentence,label,len_list
 
 def collate_fn_bert(batch):
+    len_list = [f['length'] for f in batch]
     max_len = max([len(f['input_ids']) for f in batch])
     input_ids = [f['input_ids'] + [0]*(max_len-len(f['input_ids'])) for f in batch]
     label = [f['label'] + [label2id['O']] * (max_len-len(f['label'])) for f in batch]
     attention_mask = [f['attention_mask'] + [0.0]*(max_len-len(f['attention_mask'])) for f in batch]
-    return torch.tensor(input_ids), torch.tensor(attention_mask), torch.tensor(label)
-
+    return torch.LongTensor(input_ids), torch.tensor(attention_mask), torch.tensor(label), len_list
     
     
