@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader,Dataset
 import json
 
 label2id = json.load(open('label2id.json'))
-
+char2id = json.load(open('char2id.json'))
 
 class NERDataset(Dataset):
     def __init__(self,data_path) -> None:
@@ -33,6 +33,11 @@ class NERDataset(Dataset):
         return {"sentence":sentence,"label":label}
     
 def collate_fn(batch):
-    sentence = [s['sentence'] for s in batch]
+    max_len = max([len(f['sentence']) for f in batch])
+    sentence = []
+    for f in batch:
+        s = list(f['sentence']) + (max_len - len(f['sentence']))*['#']
+        s = [char2id[c] for c in s]
+        sentence.append(s)
     label = [s['label'] for s in batch]
     return sentence,label
