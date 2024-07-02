@@ -55,7 +55,7 @@ def train(model:NerModelBert,train_dataset,dev_dataset,args,log_recorder:LogReco
     train_loader = DataLoader(train_dataset,
                               batch_size=args.batch_size,
                               collate_fn=collate_fn_bert)
-    total_step = len(train_loader) / args.batch_size
+    total_step = len(train_loader) / args.batch_size * args.epochs
     step = 0
     best_f1 = -1
     loss_list = []
@@ -78,6 +78,7 @@ def train(model:NerModelBert,train_dataset,dev_dataset,args,log_recorder:LogReco
                 f1 = eval(model,dev_dataset,args.batch_size)
                 log_recorder.add_log(step=step,loss=loss.item(),f1=f1)
                 if(f1 > best_f1):
+                    torch.save(model.state_dict(),args.save_path)
                     log_recorder.best_score = {'f1':f1}
                     best_f1 = f1
                 print(f"epoch:{epoch},f1:{f1},loss:{loss_total}")
@@ -88,11 +89,12 @@ def train(model:NerModelBert,train_dataset,dev_dataset,args,log_recorder:LogReco
     
 def main():
     parser = argparse.ArgumentParser(description="Training a bert model.")
-    parser.add_argument("--lr",type=float, default=1e-5, help="Learning rate.")
-    parser.add_argument("--epochs",type=int, default=3, help='Number of training epochs.')    
-    parser.add_argument("--batch_size", type=int, default=4, help="Training batch size.")
+    parser.add_argument("--lr",type=float, default=5e-5, help="Learning rate.")
+    parser.add_argument("--epochs",type=int, default=30, help='Number of training epochs.')    
+    parser.add_argument("--batch_size", type=int, default=24, help="Training batch size.")
     parser.add_argument("--num_labels", type=int, default=11, help="Number of labels.")
-    parser.add_argument("--device",type=str, default='mps', help="Device used to training model")
+    parser.add_argument("--device",type=str, default='cuda', help="Device used to training model")
+    parser.add_argument("--save_path",type=str, default='save/model.pth', help="Path to save model")
     args = parser.parse_args()
     
     global device
@@ -106,8 +108,8 @@ def main():
     bert_model = BertModel.from_pretrained('bert-base-chinese').to(device)
     model = NerModelBert(bert_model=bert_model,num_labels=args.num_labels)
     model.to(device)
-    train_dataset = NERDatasetBert('nlp2024-data/dataset/small_train.json',tokenizer)
-    dev_dataset = NERDatasetBert('nlp2024-data/dataset/small_dev.json',tokenizer)
+    train_dataset = NERDatasetBert('nlp2024-data/dataset/train.json',tokenizer)
+    dev_dataset = NERDatasetBert('nlp2024-data/dataset/dev.json',tokenizer)
     train(model,train_dataset,dev_dataset,args,log_recorder)
     time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_recorder.save(f'log/{time_str}.json')
