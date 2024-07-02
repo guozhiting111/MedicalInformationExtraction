@@ -1,5 +1,5 @@
 import torch.utils
-
+from model import NerModelLSTM
 import model
 from my_utils import NERDatasetBert, collate_fn, collate_fn_bert, NERDataset
 import torch
@@ -71,32 +71,6 @@ def train(model,dataloader_train,dataloader_eval,args,log_recorder):
             step += 1
 
 
-
-
-class ModelLSTM(nn.Module):
-    def __init__(self, num_embeddings, embedding_dim,num_labels,hidden_size):
-        super().__init__()
-        self.embedding = nn.Embedding(num_embeddings=num_embeddings,
-                                      embedding_dim=embedding_dim,
-                                      )
-        self.crf_layer = model.CRFLayer(num_labels)
-        self.lstm = nn.LSTM(input_size=embedding_dim,
-                            hidden_size=hidden_size,
-                            num_layers=2,bidirectional=True,
-                            )
-        self.fc = nn.Linear(2*hidden_size, num_labels)
-        # [batch,len,emb]
-        # [len,batch,emb]
-    def forward(self,train_x):
-        train_x = self.embedding(train_x)
-        train_x = train_x.permute([1,0,2])
-        out,_ = self.lstm(train_x)
-        out = self.fc(out).permute([1,0,2])
-        return out
-    def decode(self,emission):
-        tag = self.crf_layer.decode(emission)
-        return tag
-
 def main():
     parser = argparse.ArgumentParser(description="Training a bert model.")
     parser.add_argument("--lr", type=float, default=5e-5, help="Learning rate.")
@@ -118,7 +92,7 @@ def main():
         num_labels = len(Data)
     args_dict = vars(args)
     log_recorder = LogRecorder(info="Bi-Lstm+CRF",config=args_dict,verbose=False)
-    model = ModelLSTM(lenth,100,num_labels,100)
+    model = NerModelLSTM(lenth,100,num_labels,100)
     time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
     train(model,dataloader_train,dataloader_eval,args,log_recorder)
     log_recorder.save(f'log/{time_str}.json')
