@@ -84,12 +84,10 @@ def main():
     dataloader_train = DataLoader(dataset_train,batch_size=args.batch_size,collate_fn=collate_fn)
     dataset_eval = NERDataset('nlp2024-data/dataset/dev.json')
     dataloader_eval = DataLoader(dataset_eval,batch_size=args.batch_size,collate_fn=collate_fn)
-    with open('char2id.json','r',encoding='utf-8') as f:
-        data = f.read()
-        lenth = len(data)
-    with open('label2id.json','r',encoding='utf-8') as f:
-        Data = f.read()
-        num_labels = len(Data)
+    data =  json.load(open('char2id.json',encoding='utf-8'))
+    lenth = len(data)
+    Data = json.load(open('label2id.json',encoding='utf-8'))
+    num_labels = len(Data)
     args_dict = vars(args)
     log_recorder = LogRecorder(info="Bi-Lstm+CRF",config=args_dict,verbose=False)
     model = NerModelLSTM(lenth,100,num_labels,100)
